@@ -134,7 +134,7 @@ class SerialCanNode(Node):
                     self.sensor_data.rps_raw[id] = (received_data[6] << 8) | received_data[7]
                     self.sensor_data.actual_current[id] = (received_data[8] << 8) | received_data[9]
                     self.feedback_pub.publish(self.sensor_data)
-                    self.get_logger().info(f"Received: {received_data}")
+                    # self.get_logger().info(f"Received: {received_data}")
                 else:
                     self.buffer = self.buffer[-15:]
                     self.get_logger().info(f"no data found")
