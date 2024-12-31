@@ -24,7 +24,18 @@ def generate_launch_description():
         )
     )
 
+    realsence_launch = IncludeLaunchDescription(
+        AnyLaunchDescriptionSource(
+            os.path.join(
+                get_package_share_directory('realsense2_camera'),
+                'launch',
+                'rs_launch.py'
+            )
+        )
+    )
+
     return LaunchDescription([
         serial_node,
-        foxglove_bridge_launch
+        foxglove_bridge_launch,
+        realsence_launch
     ])
