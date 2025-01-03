@@ -52,7 +52,9 @@ class ImageSubscriber(Node):
                     'encoding': self.received_msg.encoding,
                     'is_bigendian': self.received_msg.is_bigendian,
                     'step': self.received_msg.step,
-                    'data': encoded_data
+                    'data': encoded_data,
+                    # 'data': self.received_msg.data.tolist(),
+                    'target_value': None
                 }
 
                 # Save JSON to file
