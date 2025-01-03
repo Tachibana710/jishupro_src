@@ -31,7 +31,11 @@ def generate_launch_description():
                 'launch',
                 'rs_launch.py'
             )
-        )
+        ),
+        launch_arguments={
+            'enable_pointcloud': 'true',
+            'align_depth': 'true'
+        }.items()
     )
 
     return LaunchDescription([
