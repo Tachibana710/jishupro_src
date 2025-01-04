@@ -1,0 +1,3 @@
+[submodule "recognition_pkg/src/myCNN"]
+	path = recognition_pkg/src/myCNN
+	url = https://github.com/Tachibana710/myCNN

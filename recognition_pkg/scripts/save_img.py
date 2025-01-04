@@ -20,7 +20,7 @@ class ImageSubscriber(Node):
         self.current_image = None
         self.received_msg = None
 
-        self.img_cnt = 0
+        self.img_cnt = 50
 
     def listener_callback(self, msg):
         print('Image received')

@@ -56,6 +56,7 @@ def main(data_file):
         print(f"Existing target value: {data['target_value']}")
         target_position = tuple(data['target_value'])
         cv2.circle(image, target_position, 5, (0, 0, 255), -1)
+        # return
     else:
         print("No target value found. Click on the image to set it.")
 
