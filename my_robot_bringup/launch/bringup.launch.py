@@ -45,9 +45,17 @@ def generate_launch_description():
         output='screen'
     )
 
+    state_publisher_node = Node(
+        package='state_pkg',
+        executable='state_publisher',
+        name='state_publisher',
+        output='screen'
+    )
+
     return LaunchDescription([
         serial_node,
         foxglove_bridge_launch,
         realsence_launch,
+        state_publisher_node,
         # recognition_node
     ])

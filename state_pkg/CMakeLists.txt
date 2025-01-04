@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.8)
-project(my_msgs)
+project(state_pkg)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_BUILD_TYPE Release)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -11,16 +16,19 @@ find_package(ament_cmake REQUIRED)
 # further dependencies manually.
 # find_package(<dependency> REQUIRED)
 
-find_package(rosidl_default_generators REQUIRED)
-find_package(std_msgs REQUIRED)
 
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/SensorData.msg"
-  "msg/TargetCurrent.msg"
-  "msg/RecognitionResult.msg"
-  "msg/RobotState.msg"
-  DEPENDENCIES std_msgs
+add_executable(state_publisher src/state_publisher.cpp)
+
+find_package(rclcpp REQUIRED)
+find_package(my_msgs REQUIRED)
+
+ament_target_dependencies(state_publisher rclcpp my_msgs)
+
+install(TARGETS
+  state_publisher
+  DESTINATION lib/${PROJECT_NAME}
 )
+
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -34,5 +42,4 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
-ament_export_dependencies(rosidl_default_runtime)
 ament_package()

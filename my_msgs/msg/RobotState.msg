@@ -1,0 +1,6 @@
+float32 elbow_angle
+float32 elbow_omega
+float32 shoulder_angle
+float32 shoulder_omega
+float32 y
+float32 y_dot
