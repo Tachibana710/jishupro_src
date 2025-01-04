@@ -17,6 +17,7 @@ find_package(std_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SensorData.msg"
   "msg/TargetCurrent.msg"
+  "msg/RecognitionResult.msg"
   DEPENDENCIES std_msgs
 )
 

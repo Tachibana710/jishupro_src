@@ -1,0 +1,2 @@
+int32 output_x
+int32 output_y

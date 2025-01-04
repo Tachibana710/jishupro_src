@@ -22,7 +22,18 @@ add_executable(recog_node src/myCNN/src/main.cpp ${SRC_FILES})
 install(TARGETS recog_node DESTINATION lib/${PROJECT_NAME})
 
 find_package(Eigen3 REQUIRED)
+
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(my_msgs REQUIRED)
+
+# target_link_libraries(recog_node Eigen3::Eigen rclcpp sensor_msgs std_msgs)
+ament_target_dependencies(recog_node rclcpp sensor_msgs std_msgs my_msgs Eigen3)
+
 target_link_libraries(recog_node Eigen3::Eigen)
+
+ament_export_dependencies(rosidl_default_runtime)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
