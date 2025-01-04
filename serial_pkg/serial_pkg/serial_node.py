@@ -34,6 +34,8 @@ class SerialCanNode(Node):
 
         self.buffer = bytearray()
 
+        self.rotation_num = [0,0,0]
+
     def send_command(self, msg):
         # try:
         #     # self.ser.write((msg.data + '\n').encode('utf-8'))
@@ -125,16 +127,29 @@ class SerialCanNode(Node):
                         break
                 if found:
                     received_data = self.buffer[:10]
+                    # self.get_logger().info(f"Received: {received_data}")
                     self.buffer = self.buffer[10:]
                     id = received_data[3]
                     if id < 0 or id >= 4:
                         self.get_logger().error(f"Invalid motor ID: {id}")
                         return
-                    self.sensor_data.angle_raw[id] = (received_data[4] << 8) | received_data[5]
-                    self.sensor_data.rps_raw[id] = (received_data[6] << 8) | received_data[7]
-                    self.sensor_data.actual_current[id] = (received_data[8] << 8) | received_data[9]
+                    received_angle = (received_data[4] << 8) | received_data[5]
+                    if abs(received_angle) > 8192:
+                        self.get_logger().error(f"Invalid angle: {received_angle}")
+                        return
+                    if self.sensor_data.angle_integ[id-1] is None:
+                        self.sensor_data.angle_integ[id-1] = received_angle
+                    else:
+                        if received_angle - self.sensor_data.angle_raw[id-1] > 8192 / 2:
+                            self.rotation_num[id-1] -= 1
+                        elif received_angle - self.sensor_data.angle_raw[id-1] < -8192 / 2:
+                            self.rotation_num[id-1] += 1
+                        self.sensor_data.angle_integ[id-1] = received_angle + self.rotation_num[id-1] * 8192
+                    self.sensor_data.angle_raw[id-1] = (received_data[4] << 8) | received_data[5]
+                    self.sensor_data.rps_raw[id-1] = (received_data[6] << 8) | received_data[7]
+                    self.sensor_data.actual_current[id-1] = (received_data[8] << 8) | received_data[9]
+                   
                     self.feedback_pub.publish(self.sensor_data)
-                    # self.get_logger().info(f"Received: {received_data}")
                 else:
                     self.buffer = self.buffer[-15:]
                     self.get_logger().info(f"no data found")
