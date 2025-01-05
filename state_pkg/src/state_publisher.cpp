@@ -27,10 +27,10 @@ class StatePublisher : public rclcpp::Node
             state.elbow_angle = msg->angle_integ[elbow_idx] * factor;
             state.elbow_omega = msg->rpm_raw[elbow_idx] * 2 * pi / 60.0 / 36;
             constexpr double shoulder_gear_ratio = 44.0 / 20.0;
-            state.shoulder_angle = msg->angle_integ[1] * factor / shoulder_gear_ratio;
+            state.shoulder_angle = msg->angle_integ[shoulder_idx] * factor / shoulder_gear_ratio;
             state.shoulder_omega = msg->rpm_raw[shoulder_idx] * 2 * pi / 60.0 / 36 / shoulder_gear_ratio;
             constexpr double wheel_radius = 0.1;
-            state.y = msg->angle_integ[2] * factor * wheel_radius;
+            state.y = msg->angle_integ[wheel_idx] * factor * wheel_radius;
             state.y_dot = msg->rpm_raw[wheel_idx] * 2 * pi / 60.0 / 36 * wheel_radius;
 
             pub_->publish(state);

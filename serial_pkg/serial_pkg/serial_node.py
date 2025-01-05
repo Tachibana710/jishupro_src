@@ -12,7 +12,7 @@ class SerialCanNode(Node):
         # Arduinoと接続するシリアルポートを指定
         self.serial_port = '/dev/ttyUSB0'
         self.baud_rate = 250000
-        self.ser = serial.Serial(self.serial_port, self.baud_rate, timeout=0.0005)
+        self.ser = serial.Serial(self.serial_port, self.baud_rate, timeout=0.001)
         time.sleep(2)  # 接続待機
 
         self.get_logger().info(f"Connected to Arduino on {self.serial_port}")
@@ -27,7 +27,7 @@ class SerialCanNode(Node):
         self.feedback_pub = self.create_publisher(SensorData, '/sensor_data', 10)
 
         # ホールセンサ値取得用タイマー
-        self.timer = self.create_timer(0.001, self.read_feedback)
+        self.timer = self.create_timer(0.002, self.read_feedback)
 
         self.sensor_data = SensorData()
         self.target_current = [0,0,0]
@@ -146,8 +146,14 @@ class SerialCanNode(Node):
                             self.rotation_num[id-1] += 1
                         self.sensor_data.angle_integ[id-1] = received_angle + self.rotation_num[id-1] * 8192
                     self.sensor_data.angle_raw[id-1] = (received_data[4] << 8) | received_data[5]
-                    self.sensor_data.rps_raw[id-1] = (received_data[6] << 8) | received_data[7]
+                    self.sensor_data.rpm_raw[id-1] = (received_data[6] << 8) | received_data[7]
+                    if self.sensor_data.rpm_raw[id-1] > 32767:
+                        self.sensor_data.rpm_raw[id-1] -= 65536
+                        # self.sensor_data.rpm_raw[id-1] = -self.sensor_data.rpm_raw[id-1]
                     self.sensor_data.actual_current[id-1] = (received_data[8] << 8) | received_data[9]
+                    if self.sensor_data.actual_current[id-1] > 32767:
+                        self.sensor_data.actual_current[id-1] -= 65536
+                        # self.sensor_data.actual_current[id-1] = -self.sensor_data.actual_current[id-1]
                    
                     self.feedback_pub.publish(self.sensor_data)
                 else:
