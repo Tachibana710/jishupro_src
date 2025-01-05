@@ -18,9 +18,9 @@ class StatePublisher : public rclcpp::Node
         void callback(const my_msgs::msg::SensorData::SharedPtr msg)
         {
             my_msgs::msg::RobotState state;
-            int shoulder_idx = 1;
-            int elbow_idx = 0;
-            int wheel_idx = 2;
+            constexpr int shoulder_idx = 1;
+            constexpr int elbow_idx = 0;
+            constexpr int wheel_idx = 2;
 
             constexpr double pi = 3.14159265358979323846;
             constexpr double factor = 2 * pi / 8192 / 36;
