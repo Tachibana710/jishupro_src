@@ -62,7 +62,7 @@ class ControlNode : public rclcpp::Node
             elbow_regulator_ = PIDRegulator(
                 [this](){return state_.elbow_angle;},
                 [this](){return state_.elbow_omega;},
-                0.5, 0.25);
+                1, 0.3);
             wheel_regulator_ = PIDRegulator(
                 [this](){return state_.y;},
                 [this](){return state_.y_dot;},
@@ -81,6 +81,7 @@ class ControlNode : public rclcpp::Node
 
             target_current.target_current[shoulder_idx] = shoulder_regulator_(target_.shoulder_angle, target_.shoulder_omega) * 1000;
             target_current.target_current[elbow_idx] = elbow_regulator_(target_.elbow_angle, target_.elbow_omega) * 1000;
+            // target_current.target_current[elbow_idx] = std::sin(rclcpp::Clock().now().seconds()) * 500;
             target_current.target_current[wheel_idx] = wheel_regulator_(target_.y, target_.y_dot) * 1000;
 
             pub_->publish(target_current);

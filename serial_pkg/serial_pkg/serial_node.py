@@ -67,8 +67,8 @@ class SerialCanNode(Node):
         #     # self.get_logger().info(f"Sent: {msg.target_current}")
         # except Exception as e:
         #     self.get_logger().error(f"Failed to send command: {e}")
-        print("send_command")
-        print(msg.target_current)
+        # print("send_command")
+        # print(msg.target_current)
         self.target_current = msg.target_current
 
     def read_print_output(self):
@@ -80,6 +80,7 @@ class SerialCanNode(Node):
             return
 
     def read_feedback(self):
+        # self.get_logger().info("start time: {0}".format(time.time()))
         # self.get_logger().info("Reading feedback")
         buf = bytearray()
         MSB1 = (int(self.target_current[0]) >> 8) & 0xFF
@@ -104,62 +105,72 @@ class SerialCanNode(Node):
         #     #     data = self.ser.read(size=8)
         #     #     motor_id = (int(data[6]) << 8 | data[7])
 
-        if self.ser.in_waiting > 0:
+        if self.ser.in_waiting > 10:
             # data = self.ser.readline()
             # if len(data) != 8:
                 
             #     return
             # self.ser.reset_input_buffer()
             # self.ser.reset_output_buffer()
-            data = self.ser.read(10)
+            # if self.ser.in_waiting < 10:
+            #     return
+            data = self.ser.read(self.ser.in_waiting)
             # data = [int(data[i]) for i in range(8)]
 
             # self.get_logger().info(f"Received: {data}")
 
             self.buffer += data
-            if len(self.buffer) > 10:
-                # self.get_logger().info(f"buffer: {len(self.buffer)}")
-                found = False
-                for i in range(len(self.buffer) - 10):
-                    if self.buffer[i:i+3] == b'\xAA\xAA\xAA':
-                        self.buffer = self.buffer[i:]
-                        found = True
-                        break
-                if found:
-                    received_data = self.buffer[:10]
-                    # self.get_logger().info(f"Received: {received_data}")
-                    self.buffer = self.buffer[10:]
-                    id = received_data[3]
-                    if id < 0 or id >= 4:
-                        self.get_logger().error(f"Invalid motor ID: {id}")
-                        return
-                    received_angle = (received_data[4] << 8) | received_data[5]
-                    if abs(received_angle) > 8192:
-                        self.get_logger().error(f"Invalid angle: {received_angle}")
-                        return
-                    if self.sensor_data.angle_integ[id-1] is None:
-                        self.sensor_data.angle_integ[id-1] = received_angle
+            # self.get_logger().info(f"buffer: {self.buffer}")
+            while len(self.buffer) >= 10:
+                if len(self.buffer) >= 10:
+                    # self.get_logger().info(f"buffer: {len(self.buffer)}")
+                    found = False
+                    for i in range(len(self.buffer) - 10):
+                        if self.buffer[i:i+3] == b'\xAA\xAA\xAA':
+                            self.buffer = self.buffer[i:]
+                            found = True
+                            break
+                    if found:
+                        received_data = self.buffer[:10]
+                        # self.get_logger().info(f"Received: {received_data}")
+                        self.buffer = self.buffer[10:]
+                        id = received_data[3]
+                        if id < 0 or id >= 4:
+                            self.get_logger().error(f"Invalid motor ID: {id}")
+                            continue
+                        received_angle = (received_data[4] << 8) | received_data[5]
+                        if abs(received_angle) > 8192:
+                            self.get_logger().error(f"Invalid angle: {received_angle}")
+                            continue
+                        if self.sensor_data.angle_integ[id-1] is None:
+                            self.sensor_data.angle_integ[id-1] = received_angle
+                        else:
+                            if received_angle - self.sensor_data.angle_raw[id-1] > 8192 / 2:
+                                self.rotation_num[id-1] -= 1
+                            elif received_angle - self.sensor_data.angle_raw[id-1] < -8192 / 2:
+                                self.rotation_num[id-1] += 1
+                            self.sensor_data.angle_integ[id-1] = received_angle + self.rotation_num[id-1] * 8192
+                        self.sensor_data.angle_raw[id-1] = (received_data[4] << 8) | received_data[5]
+                        self.sensor_data.rpm_raw[id-1] = (received_data[6] << 8) | received_data[7]
+                        if self.sensor_data.rpm_raw[id-1] > 32767:
+                            self.sensor_data.rpm_raw[id-1] -= 65536
+                            # self.sensor_data.rpm_raw[id-1] = -self.sensor_data.rpm_raw[id-1]
+                        self.sensor_data.actual_current[id-1] = (received_data[8] << 8) | received_data[9]
+                        if self.sensor_data.actual_current[id-1] > 32767:
+                            self.sensor_data.actual_current[id-1] -= 65536
+                            # self.sensor_data.actual_current[id-1] = -self.sensor_data.actual_current[id-1]
+                    
+                        self.feedback_pub.publish(self.sensor_data)
                     else:
-                        if received_angle - self.sensor_data.angle_raw[id-1] > 8192 / 2:
-                            self.rotation_num[id-1] -= 1
-                        elif received_angle - self.sensor_data.angle_raw[id-1] < -8192 / 2:
-                            self.rotation_num[id-1] += 1
-                        self.sensor_data.angle_integ[id-1] = received_angle + self.rotation_num[id-1] * 8192
-                    self.sensor_data.angle_raw[id-1] = (received_data[4] << 8) | received_data[5]
-                    self.sensor_data.rpm_raw[id-1] = (received_data[6] << 8) | received_data[7]
-                    if self.sensor_data.rpm_raw[id-1] > 32767:
-                        self.sensor_data.rpm_raw[id-1] -= 65536
-                        # self.sensor_data.rpm_raw[id-1] = -self.sensor_data.rpm_raw[id-1]
-                    self.sensor_data.actual_current[id-1] = (received_data[8] << 8) | received_data[9]
-                    if self.sensor_data.actual_current[id-1] > 32767:
-                        self.sensor_data.actual_current[id-1] -= 65536
-                        # self.sensor_data.actual_current[id-1] = -self.sensor_data.actual_current[id-1]
-                   
-                    self.feedback_pub.publish(self.sensor_data)
-                else:
-                    self.buffer = self.buffer[-15:]
-                    self.get_logger().info(f"no data found")
-                    return
+                        self.buffer = self.buffer[-15:]
+                        self.get_logger().info(f"no data found")
+                        break
+                
+                # pi = 3.14159265358979323846
+                # elbow_angle = self.sensor_data.angle_integ[0] * 2 * pi / 8192 / 36
+                # elbow_omega = self.sensor_data.rpm_raw[0] * 2 * pi / 60.0 / 36
+
+                # self.target_current[0] = 1000 * (5.0 -1 * elbow_angle - 0.3 * elbow_omega)
             # data_length = 
 
 
@@ -185,6 +196,7 @@ class SerialCanNode(Node):
             # data = self.ser.readline().decode('utf-8').strip()
             # self.get_logger().info(f"Received: {data}")
             # self.feedback_pub.publish(String(data=data))
+        # self.get_logger().info("end time: {0}".format(time.time()))
         # except Exception as e:
         #     self.get_logger().error(f"Failed to read feedback: {e}")
         #     # return
