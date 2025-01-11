@@ -117,3 +117,5 @@ with torch.no_grad():
         predictions = torch.argmax(outputs, dim=1).cpu().numpy()
 
 torch.save(model.state_dict(), "segmentation_model.pth")
+
+

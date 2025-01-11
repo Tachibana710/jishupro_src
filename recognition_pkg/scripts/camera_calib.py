@@ -104,19 +104,60 @@ class PlaneDetectionNode(Node):
         plane_model, inliers = self.detect_plane(point_cloud)
 
         if plane_model is not None:
-            # 平面の法線ベクトルを取得
-            normal = plane_model[:3]
+            # # 平面の法線ベクトルを取得
+            # normal = plane_model[:3]
 
-            # カメラの回転（ピッチとロール）を計算
-            if plane_model[3] < 0:
-                normal = -normal
-            rotation = self.calculate_camera_orientation(normal)
+            # # カメラの回転（ピッチとロール）を計算
+            # if plane_model[3] < 0:
+            #     normal = -normal
+            # rotation = self.calculate_camera_orientation(normal)
 
-            # 平面モデルと原点の距離を計算
-            distance_to_origin = abs(plane_model[3]) / np.linalg.norm(plane_model[:3])
+            # # 平面モデルと原点の距離を計算
+            # distance_to_origin = abs(plane_model[3]) / np.linalg.norm(plane_model[:3])
+
+            rot, trans = self.calculate_camera_transform(plane_model, point_cloud[inliers])
 
             # TFをブロードキャスト
-            self.broadcast_tf(rotation, distance_to_origin)
+            self.broadcast_tf(rot,trans)
+
+    def calculate_camera_transform(self, plane_model, offset_points):
+        '''
+            plane_model : z = 0 の平面
+            offset_points : y = 0 上の二点
+        '''
+
+        normal = plane_model[:3]
+        if plane_model[3] < 0:
+            normal = -normal
+
+        # plane_modelと合致させる
+        z_axis = np.array([0, 0, 1])
+        rotation_vector = np.cross(normal,z_axis)
+        rotation_vector /= np.linalg.norm(rotation_vector)
+        angle = np.arccos(np.dot(z_axis, normal))
+        K = np.array([
+            [0, -rotation_vector[2], rotation_vector[1]],
+            [rotation_vector[2], 0, -rotation_vector[0]],
+            [-rotation_vector[1], rotation_vector[0], 0]
+        ])
+        rotation = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * np.dot(K, K)
+
+        z = abs(plane_model[3]) / np.linalg.norm(normal)
+
+        # offset_pointsを合致させる
+
+        yaw = 1.57
+        rotation_aroud_z = np.array([
+            [np.cos(yaw), -np.sin(yaw), 0],
+            [np.sin(yaw), np.cos(yaw), 0],
+            [0, 0, 1]
+        ])
+        rotation = rotation_aroud_z @ rotation
+
+        translation = [0, 0, z]
+
+        return rotation, translation
+        
 
     def depth_to_pointcloud(self, depth_image):
         h, w = depth_image.shape
@@ -144,37 +185,7 @@ class PlaneDetectionNode(Node):
             self.get_logger().warning('平面が検出できませんでした。')
             return None, None
 
-    def calculate_camera_orientation(self, normal):
-        # 平面の法線ベクトルを基にカメラの姿勢を計算
-        # if normal[2] < 0:
-        #     normal = -normal
-        z_axis = np.array([0, 0, 1])  # 平面の法線がz=0に一致するように
-        # rotation_vector = np.cross(normal, z_axis)
-        # angle = np.arccos(np.dot(normal, z_axis) / (np.linalg.norm(normal) * np.linalg.norm(z_axis)))
-        # rotation = R.from_rotvec(rotation_vector * angle)
-        rotation_vector = np.cross(normal,z_axis)
-        rotation_vector /= np.linalg.norm(rotation_vector)
-        angle = np.arccos(np.dot(z_axis, normal))
-
-        # if rotation_vector[1] < 0:
-        #     angle = -angle
-
-        K = np.array([
-            [0, -rotation_vector[2], rotation_vector[1]],
-            [rotation_vector[2], 0, -rotation_vector[0]],
-            [-rotation_vector[1], rotation_vector[0], 0]
-        ])
-        rotation = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * np.dot(K, K)
-        # rotation = [
-        #     np.cos(angle / 2),
-        #     rotation_vector[0] * np.sin(angle / 2),
-        #     rotation_vector[1] * np.sin(angle / 2),
-        #     rotation_vector[2] * np.sin(angle / 2)
-        # ]
-        # inverse = R.from_quat(rotation).inv()
-        return rotation
-
-    def broadcast_tf(self, rotation, z):
+    def broadcast_tf(self, rotation, translation):
         # TransformStampedメッセージを作成
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
@@ -182,9 +193,9 @@ class PlaneDetectionNode(Node):
         t.child_frame_id = 'camera_depth_optical_frame'
 
         # カメラの位置と姿勢を設定 (仮に位置を原点に設定)
-        t.transform.translation.x = 1.0
-        t.transform.translation.y = 0.0
-        t.transform.translation.z = z
+        t.transform.translation.x = float(translation[0])
+        t.transform.translation.y = float(translation[1])
+        t.transform.translation.z = float(translation[2])
 
         # 回転をクォータニオン形式で設定
         quat = R.from_matrix(rotation).as_quat()
