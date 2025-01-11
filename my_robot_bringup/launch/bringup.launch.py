@@ -59,11 +59,18 @@ def generate_launch_description():
         output='screen'
     )
 
+    recognition_node = Node(
+        package='recognition_pkg',
+        executable='recognition_node.py',
+        name='recognition_node',
+        output='screen'
+    )
+
     return LaunchDescription([
         serial_node,
         foxglove_bridge_launch,
         realsence_launch,
         state_publisher_node,
         control_node,
-        # recognition_node
+        recognition_node
     ])
