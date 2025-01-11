@@ -58,15 +58,15 @@ class ControlNode : public rclcpp::Node
             shoulder_regulator_ = PIDRegulator(
                 [this](){return state_.shoulder_angle;},
                 [this](){return state_.shoulder_omega;},
-                0.1, 0.1);
+                2, 0.3);
             elbow_regulator_ = PIDRegulator(
                 [this](){return state_.elbow_angle;},
                 [this](){return state_.elbow_omega;},
-                1, 0.3);
+                2, 0.3);
             wheel_regulator_ = PIDRegulator(
                 [this](){return state_.y;},
                 [this](){return state_.y_dot;},
-                0.1, 0.1);
+                20, 3);
 
             RCLCPP_INFO(this->get_logger(), "control_node has started.");
         }
