@@ -35,6 +35,12 @@ target_link_libraries(recog_node Eigen3::Eigen)
 
 ament_export_dependencies(rosidl_default_runtime)
 
+install(
+  PROGRAMS
+  scripts/recognition_node.py  # インストールするPythonスクリプト
+DESTINATION lib/${PROJECT_NAME}  # インストール先ディレクトリ
+)
+
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
   # the following line skips the linter which checks for copyrights

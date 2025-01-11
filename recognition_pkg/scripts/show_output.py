@@ -37,7 +37,11 @@ def main(image_path):
     import numpy as np
 
     # カラーマップを定義（例としてランダムに色を割り当て）
-    colormap = np.random.randint(0, 255, size=(21, 3))  # クラスごとの色を生成
+    # colormap = np.random.randint(0, 255, size=(21, 3))  # クラスごとの色を生成
+    colormap = [
+        [0,0,0],
+        [255,255,255],
+    ]
 
     def apply_colormap(mask, colormap):
         """
@@ -61,8 +65,14 @@ def main(image_path):
     plt.axis("off")
 
     # 予測マスク
+    colored_mask = Image.fromarray(colored_mask)
+    original_mask = colored_mask.resize(input_image.size)
+
+    overlay = Image.blend(input_image, original_mask, alpha=0.5)
+    # overlay = overlay.astype(np.uint8)
+
     plt.subplot(1, 2, 2)
-    plt.imshow(colored_mask)
+    plt.imshow(overlay)
     plt.title("Predicted Segmentation Mask")
     plt.axis("off")
 
