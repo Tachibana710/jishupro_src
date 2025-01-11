@@ -108,10 +108,15 @@ class PlaneDetectionNode(Node):
             normal = plane_model[:3]
 
             # カメラの回転（ピッチとロール）を計算
+            if plane_model[3] < 0:
+                normal = -normal
             rotation = self.calculate_camera_orientation(normal)
 
+            # 平面モデルと原点の距離を計算
+            distance_to_origin = abs(plane_model[3]) / np.linalg.norm(plane_model[:3])
+
             # TFをブロードキャスト
-            self.broadcast_tf(rotation)
+            self.broadcast_tf(rotation, distance_to_origin)
 
     def depth_to_pointcloud(self, depth_image):
         h, w = depth_image.shape
@@ -141,6 +146,8 @@ class PlaneDetectionNode(Node):
 
     def calculate_camera_orientation(self, normal):
         # 平面の法線ベクトルを基にカメラの姿勢を計算
+        # if normal[2] < 0:
+        #     normal = -normal
         z_axis = np.array([0, 0, 1])  # 平面の法線がz=0に一致するように
         # rotation_vector = np.cross(normal, z_axis)
         # angle = np.arccos(np.dot(normal, z_axis) / (np.linalg.norm(normal) * np.linalg.norm(z_axis)))
@@ -148,6 +155,9 @@ class PlaneDetectionNode(Node):
         rotation_vector = np.cross(normal,z_axis)
         rotation_vector /= np.linalg.norm(rotation_vector)
         angle = np.arccos(np.dot(z_axis, normal))
+
+        # if rotation_vector[1] < 0:
+        #     angle = -angle
 
         K = np.array([
             [0, -rotation_vector[2], rotation_vector[1]],
@@ -164,7 +174,7 @@ class PlaneDetectionNode(Node):
         # inverse = R.from_quat(rotation).inv()
         return rotation
 
-    def broadcast_tf(self, rotation):
+    def broadcast_tf(self, rotation, z):
         # TransformStampedメッセージを作成
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
@@ -174,7 +184,7 @@ class PlaneDetectionNode(Node):
         # カメラの位置と姿勢を設定 (仮に位置を原点に設定)
         t.transform.translation.x = 1.0
         t.transform.translation.y = 0.0
-        t.transform.translation.z = 0.0
+        t.transform.translation.z = z
 
         # 回転をクォータニオン形式で設定
         quat = R.from_matrix(rotation).as_quat()
