@@ -9,6 +9,10 @@ from cv_bridge import CvBridge
 from PIL import Image as PILImage
 import torch
 import os
+import tf2_ros
+import geometry_msgs
+import pyrealsense2 as rs
+from sensor_msgs.msg import CameraInfo
 
 class SegmentationNode(Node):
     def __init__(self):
@@ -26,7 +30,47 @@ class SegmentationNode(Node):
             'recognition/segmentation/mask',
             10
         )
+        self.mask = None
+
         self.bridge = CvBridge()
+
+        # pipeline = rs.pipeline()
+        # config = rs.config()
+        # config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        # profile = pipeline.start(config)
+        # self.depth_sensor = profile.get_device().first_depth_sensor()
+        # self.depth_scale = self.depth_sensor.get_depth_scale()
+        # self.depth_intrin = profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
+        # pipeline.stop()
+
+        self.depth_scale = None
+        self.depth_intrin = None
+        def camera_info_callback(msg):
+            self.depth_scale = 0.001
+            self.depth_intrin = rs.intrinsics()
+            self.depth_intrin.width = msg.width
+            self.depth_intrin.height = msg.height
+            self.depth_intrin.ppx = msg.k[2]
+            self.depth_intrin.ppy = msg.k[5]
+            self.depth_intrin.fx = msg.k[0]
+            self.depth_intrin.fy = msg.k[4]
+            self.depth_intrin.coeffs = [0, 0, 0, 0, 0]
+        self.camera_info_sub = self.create_subscription(
+            CameraInfo,
+            'camera/camera/depth/camera_info',
+            camera_info_callback,
+            10
+        )
+
+        self.depth_img = None
+        self.subscription = self.create_subscription(
+            Image,
+            'camera/camera/depth/image_rect_raw',
+            self.depth_callback,
+            10
+        )
+
+        self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
 
         # モデルの準備
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,6 +85,51 @@ class SegmentationNode(Node):
         model = model.to(self.device)
         model.eval()
         return model
+
+    def depth_callback(self, msg):
+        cv_depth = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        self.depth_img = cv_depth
+        # self.get_logger().info('depth image received')
+
+    def publish_tf(self):
+        def pixel_to_3d(x,y):
+            depth = self.depth_img[y][x] * self.depth_scale
+            # print(self.depth_intrin)
+            result = rs.rs2_deproject_pixel_to_point(self.depth_intrin, [x, y], depth)
+            return result
+
+        pointcloud = []
+        for x in range(0, 640, 10):
+            for y in range(0, 480, 10):
+                if np.array_equal(self.mask[y, x], [255, 255, 255]):
+                    depth = self.depth_img[y, x]
+                    if depth > 0:
+                        pointcloud.append(pixel_to_3d(x, y))
+
+        if len(pointcloud) > 0:
+            center = np.mean(pointcloud, axis=0)
+        else:
+            return
+
+
+        center = np.mean(pointcloud, axis=0)
+
+        t = geometry_msgs.msg.TransformStamped()
+        t.header.stamp = self.get_clock().now().to_msg()
+        t.header.frame_id = "camera_link"
+        t.child_frame_id = "object"
+        t.transform.translation.x = center[0]
+        t.transform.translation.y = center[1]
+        t.transform.translation.z = center[2]
+        t.transform.rotation.x = 0.0
+        t.transform.rotation.y = 0.0
+        t.transform.rotation.z = 0.0
+        t.transform.rotation.w = 1.0
+
+        self.tf_broadcaster.sendTransform(t)
+
+
+
 
     def get_image_transform(self):
         from torchvision import transforms
@@ -78,13 +167,15 @@ class SegmentationNode(Node):
         colored_mask = apply_colormap(predicted_mask, colormap)
         colored_mask = PILImage.fromarray(colored_mask)
         colored_mask = colored_mask.resize((msg.width, msg.height))  # 元の画像サイズにリサイズ
-
+        self.mask = np.array(colored_mask)
         # カラーマスクをROS2のImageメッセージに変換
         cv_colored_mask = np.array(colored_mask)
         publish_msg = self.bridge.cv2_to_imgmsg(cv_colored_mask, encoding='rgb8')
 
         # トピックにPublish
         self.publisher_.publish(publish_msg)
+
+        self.publish_tf()
 
 
 def main(args=None):
