@@ -21,8 +21,9 @@ add_executable(state_publisher src/state_publisher.cpp)
 
 find_package(rclcpp REQUIRED)
 find_package(my_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
-ament_target_dependencies(state_publisher rclcpp my_msgs)
+ament_target_dependencies(state_publisher rclcpp my_msgs std_srvs)
 
 install(TARGETS
   state_publisher

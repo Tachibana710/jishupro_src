@@ -2,3 +2,4 @@ dataset/
 *dataset/
 model.json
 *.pth
+rosbag*
