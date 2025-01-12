@@ -10,6 +10,7 @@ from geometry_msgs.msg import Point
 from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker, MarkerArray
 from sensor_msgs_py import point_cloud2
+import pyrealsense2 as rs
 
 
 class PlaneDetectionNode(Node):
@@ -25,11 +26,31 @@ class PlaneDetectionNode(Node):
         self.marker_pub = self.create_publisher(Marker, '/plane_marker', 10)
         self.point_cloud_pub = self.create_publisher(point_cloud2.PointCloud2, '/point_cloud', 10)
 
-        # カメラの内部パラメータ (仮に設定。CameraInfoトピックを購読して取得してもよい)
-        self.fx = 525.0  # 焦点距離 x
-        self.fy = 525.0  # 焦点距離 y
-        self.cx = 319.5  # 画像中心 x
-        self.cy = 239.5  # 画像中心 y
+        self.depth_scale = None
+        self.depth_intrin = None
+        def camera_info_callback(msg):
+            self.depth_scale = 0.001
+            self.depth_intrin = rs.intrinsics()
+            self.depth_intrin.width = msg.width
+            self.depth_intrin.height = msg.height
+            self.depth_intrin.ppx = msg.k[2]
+            self.depth_intrin.ppy = msg.k[5]
+            self.depth_intrin.fx = msg.k[0]
+            self.depth_intrin.fy = msg.k[4]
+            self.depth_intrin.coeffs = [0, 0, 0, 0, 0]
+        self.camera_info_sub = self.create_subscription(
+            CameraInfo,
+            'camera/camera/depth/camera_info',
+            camera_info_callback,
+            10
+        )
+
+        self.last_update_time = self.get_clock().now()
+        # # カメラの内部パラメータ (仮に設定。CameraInfoトピックを購読して取得してもよい)
+        # self.fx = 525.0  # 焦点距離 x
+        # self.fy = 525.0  # 焦点距離 y
+        # self.cx = 319.5  # 画像中心 x
+        # self.cy = 239.5  # 画像中心 y
 
     def publish_plane_marker(self, plane_model, inliers, point_cloud):
         # 平面のパラメータを取得 (ax + by + cz + d = 0)
@@ -88,6 +109,9 @@ class PlaneDetectionNode(Node):
 
 
     def depth_callback(self, msg):
+        # 1秒に1回のみ処理
+        if (self.get_clock().now() - self.last_update_time).nanoseconds / 1e9 < 1.0:
+            return
         # Depth画像を変換
         depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
         depth_image = depth_image.astype(np.float32) / 1000.0  # mmからmへ変換
@@ -161,14 +185,15 @@ class PlaneDetectionNode(Node):
 
     def depth_to_pointcloud(self, depth_image):
         h, w = depth_image.shape
-        x, y = np.meshgrid(np.arange(w), np.arange(h))
-        x = (x - self.cx) / self.fx
-        y = (y - self.cy) / self.fy
-        z = depth_image
-        x *= z
-        y *= z
-        points = np.stack((x, y, z), axis=-1).reshape(-1, 3)
-        points = points[~np.isnan(points).any(axis=1)]  # NaNを除去
+        points = []
+        for v in range(h):
+            for u in range(w):
+                z = depth_image[v, u]
+                if z == 0:
+                    continue
+                x, y, z = rs.rs2_deproject_pixel_to_point(self.depth_intrin, [u, v], z)
+                points.append([x, y, z])
+        points = np.array(points)
         return points
 
     def detect_plane(self, points):
