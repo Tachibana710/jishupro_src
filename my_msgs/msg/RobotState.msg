@@ -4,3 +4,7 @@ float32 shoulder_angle
 float32 shoulder_omega
 float32 y
 float32 y_dot
+geometry_msgs/PointStamped robot_origin
+geometry_msgs/PointStamped shoulder_origin
+geometry_msgs/PointStamped elbow_origin
+geometry_msgs/PointStamped end_effector

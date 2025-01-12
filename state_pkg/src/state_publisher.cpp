@@ -5,6 +5,8 @@
 
 #include "std_srvs/srv/empty.hpp"
 
+#include "geometry_msgs/msg/point_stamped.hpp"
+
 #define M_PI 3.14159265358979323846
 
 struct offset_data{
@@ -54,6 +56,51 @@ class StatePublisher : public rclcpp::Node
             state.y = msg->angle_integ[wheel_idx] * factor * wheel_radius;
             state.y_dot = msg->rpm_raw[wheel_idx] * 2 * pi / 60.0 / 36 * wheel_radius;
 
+            auto header = std_msgs::msg::Header();
+            header.stamp = this->now();
+            header.frame_id = "map";
+
+            geometry_msgs::msg::PointStamped robot_origin;
+            robot_origin.header = header;
+            robot_origin.point.x = 0;
+            robot_origin.point.y = state.y;
+            robot_origin.point.z = 0;
+            state.robot_origin = robot_origin;
+
+            std::array<double, 3> robot_to_shoulder = {0.0, 0.0, 0.0};
+            geometry_msgs::msg::PointStamped shoulder_origin;
+            shoulder_origin.header = header;
+            shoulder_origin.point.x = robot_origin.point.x + robot_to_shoulder[0];
+            shoulder_origin.point.y = robot_origin.point.y + robot_to_shoulder[1];
+            shoulder_origin.point.z = robot_origin.point.z + robot_to_shoulder[2];
+            state.shoulder_origin = shoulder_origin;
+
+            double l1 = 0.2;
+            std::array<double, 3> shoulder_to_elbow = {
+                l1 * std::cos(state.shoulder_angle),
+                0.0,
+                l1 * std::sin(state.shoulder_angle)
+            };
+            geometry_msgs::msg::PointStamped elbow_origin;
+            elbow_origin.header = header;
+            elbow_origin.point.x = shoulder_origin.point.x + shoulder_to_elbow[0];
+            elbow_origin.point.y = shoulder_origin.point.y + shoulder_to_elbow[1];
+            elbow_origin.point.z = shoulder_origin.point.z + shoulder_to_elbow[2];
+            state.elbow_origin = elbow_origin;
+
+            double l2 = 0.2;
+            std::array<double, 3> elbow_to_end_effector = {
+                l2 * std::cos(state.shoulder_angle + state.elbow_angle),
+                0.0,
+                l2 * std::sin(state.shoulder_angle + state.elbow_angle)
+            };
+            geometry_msgs::msg::PointStamped end_effector;
+            end_effector.header = header;
+            end_effector.point.x = elbow_origin.point.x + elbow_to_end_effector[0];
+            end_effector.point.y = elbow_origin.point.y + elbow_to_end_effector[1];
+            end_effector.point.z = elbow_origin.point.z + elbow_to_end_effector[2];
+            state.end_effector = end_effector;
+
             pub_->publish(state);
             // RCLCPP_INFO(this->get_logger(), "I heard: [%s]", msg->data.c_str());
         }
@@ -61,6 +108,9 @@ class StatePublisher : public rclcpp::Node
         void init_pose_(const std_srvs::srv::Empty::Request::SharedPtr request,
                         std_srvs::srv::Empty::Response::SharedPtr response)
         {
+            (void)request;
+            (void)response;
+
             offset_.elbow_offset_raw = sensor_data_.angle_integ[elbow_idx];
             offset_.shoulder_offset_raw = sensor_data_.angle_integ[shoulder_idx];
             offset_.wheel_offset_raw = sensor_data_.angle_integ[wheel_idx];
