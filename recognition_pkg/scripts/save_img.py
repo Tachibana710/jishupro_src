@@ -20,7 +20,7 @@ class ImageSubscriber(Node):
         self.current_image = None
         self.received_msg = None
 
-        self.img_cnt = 50
+        self.img_cnt = 18
 
     def listener_callback(self, msg):
         print('Image received')
@@ -58,7 +58,7 @@ class ImageSubscriber(Node):
                 }
 
                 # Save JSON to file
-                filename = 'dataset/image_{}.json'.format(self.img_cnt)
+                filename = 'dataset/json/image_{}.json'.format(self.img_cnt)
                 self.img_cnt += 1
                 with open(filename, 'w') as json_file:
                     json.dump(image_data, json_file, indent=4)
@@ -74,8 +74,8 @@ def main(args=None):
     node = ImageSubscriber()
     try:
         while rclpy.ok():
-            rclpy.spin_once(node, timeout_sec=0.1)
             key = input("Press Enter to save the current image or Ctrl+C to exit: ")
+            rclpy.spin_once(node, timeout_sec=0.1)
             if key == '':
                 node.save_image()
     except KeyboardInterrupt:

@@ -33,7 +33,7 @@ def json_to_jpg(json_dir, output_dir):
         print(f"Saved: {output_path}")
 
 def main():
-    json_dir = 'dataset/'  # Directory containing JSON files
+    json_dir = 'dataset/json'  # Directory containing JSON files
     output_dir = 'dataset/images'  # Directory to save the converted images
 
     json_to_jpg(json_dir, output_dir)

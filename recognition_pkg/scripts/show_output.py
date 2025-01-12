@@ -6,7 +6,7 @@ from torchvision.models.segmentation import DeepLabV3_ResNet50_Weights
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # モデルの準備
-model = models.segmentation.deeplabv3_resnet50(pretrained=False, num_classes=21)  # num_classesを学習時と一致させる
+model = models.segmentation.deeplabv3_resnet50(pretrained=False, num_classes=5)  # num_classesを学習時と一致させる
 model.load_state_dict(torch.load("segmentation_model.pth", map_location=device))  # 重みをロード
 model = model.to(device)
 model.eval()  # 評価モードに設定
@@ -40,7 +40,10 @@ def main(image_path):
     # colormap = np.random.randint(0, 255, size=(21, 3))  # クラスごとの色を生成
     colormap = [
         [0,0,0],
-        [255,255,255],
+        [255,255,0],
+        [0,0,255],
+        [0,255,0],
+        [255,0,0],
     ]
 
     def apply_colormap(mask, colormap):
