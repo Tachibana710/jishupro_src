@@ -13,6 +13,7 @@ from sensor_msgs_py import point_cloud2
 from sensor_msgs.msg import PointField
 import pyrealsense2 as rs
 import struct
+import threading
 
 
 
@@ -24,6 +25,7 @@ class PlaneDetectionNode(Node):
         self.br = TransformBroadcaster(self)
 
         # サブスクライバ設定
+        self.depth_msg = None
         self.create_subscription(Image, '/camera/camera/depth/image_rect_raw', self.depth_callback, 10)
 
         self.marker_pub = self.create_publisher(Marker, '/plane_marker', 10)
@@ -58,6 +60,10 @@ class PlaneDetectionNode(Node):
         self.camera_to_bluemarker = TransformStamped()
         self.camera_to_greenmarker = TransformStamped()
 
+        self.transform = TransformStamped()
+
+        self.thread = threading.Thread(target=self.estimate_camera_pose)
+
     def tf_callback(self):
         try:
             # "target_frame" と "source_frame" 間の最新の変換を取得
@@ -82,6 +88,9 @@ class PlaneDetectionNode(Node):
                 rclpy.time.Time())
             
             # self.get_logger().info(f'Got transform: {transform}')
+            self.transform.header.stamp = self.get_clock().now().to_msg()
+            self.br.sendTransform(self.transform)
+            # print("send")
         
         except Exception as e:
             self.get_logger().warn(f'Could not get transform: {e}')
@@ -142,28 +151,25 @@ class PlaneDetectionNode(Node):
         # パブリッシュ
         self.marker_pub.publish(marker)
 
+    def estimate_camera_pose(self):
 
-    def depth_callback(self, msg):
-        # 1秒に1回のみ処理
-        if (self.get_clock().now() - self.last_update_time).nanoseconds / 1e9 < 1.0:
-            return
         # Depth画像を変換
-        depth_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        depth_image = self.bridge.imgmsg_to_cv2(self.depth_msg, desired_encoding='passthrough')
         depth_image = depth_image.astype(np.float32) / 1000.0  # mmからmへ変換
 
         # 3Dポイントクラウドに変換
         point_cloud = self.depth_to_pointcloud(depth_image)
 
         # PointCloudメッセージを作成
-        print(msg.header.frame_id)
+        print(self.depth_msg.header.frame_id)
         fields = [
             PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
             PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
             PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
             PointField(name='rgb', offset=12, datatype=PointField.FLOAT32, count=1)
         ]
-        point_cloud_msg = point_cloud2.create_cloud(msg.header, fields ,point_cloud)
-        # point_cloud_msg = point_cloud2.create_cloud_xyz32(msg.header, point_cloud[:, :3])
+        point_cloud_msg = point_cloud2.create_cloud(self.depth_msg.header, fields ,point_cloud)
+        # point_cloud_msg = point_cloud2.create_cloud_xyz32(self.depth_msg.header, point_cloud[:, :3])
         self.point_cloud_pub.publish(point_cloud_msg)
 
         # 平面検出 (RANSAC)
@@ -183,9 +189,20 @@ class PlaneDetectionNode(Node):
             # distance_to_origin = abs(plane_model[3]) / np.linalg.norm(plane_model[:3])
 
             rot, trans = self.calculate_camera_transform(plane_model, [self.camera_to_bluemarker.transform.translation, self.camera_to_greenmarker.transform.translation])
-
             # TFをブロードキャスト
             self.broadcast_tf(rot,trans)
+
+    def depth_callback(self, msg):
+        # 1秒に1回のみ処理
+        self.depth_msg = msg
+        if self.get_clock().now() - self.last_update_time > rclpy.time.Duration(seconds=1):
+            self.last_update_time = self.get_clock().now()
+            if not self.thread.is_alive():
+                self.thread = threading.Thread(target=self.estimate_camera_pose)
+                self.thread.start()
+
+
+       
 
     def calculate_camera_transform(self, plane_model, offset_points):
         '''
@@ -288,6 +305,8 @@ class PlaneDetectionNode(Node):
         t.transform.rotation.y = quat[1]
         t.transform.rotation.z = quat[2]
         t.transform.rotation.w = quat[3]
+
+        self.transform = t
 
         # TFを送信
         self.br.sendTransform(t)

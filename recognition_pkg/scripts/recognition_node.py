@@ -115,6 +115,7 @@ class SegmentationNode(Node):
         )
 
         self.tf_broadcaster = tf2_ros.TransformBroadcaster(self)
+        # self.timer = self.create_timer(1, self.publish_tf)
 
         # モデルの準備
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -155,9 +156,11 @@ class SegmentationNode(Node):
     def depth_callback(self, msg):
         cv_depth = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
         self.depth_img = cv_depth
+        # self.publish_tf()
         # self.get_logger().info('depth image received')
 
     def publish_tf(self):
+        
         if self.depth_img is None or self.depth_scale is None or self.depth_intrin is None or self.color_intrin is None or self.extrin is None:
             if self.depth_img is None:
                 self.get_logger().info('depth image is None')
@@ -192,19 +195,29 @@ class SegmentationNode(Node):
                 return result
 
             pointcloud = []
-            for x in range(0, self.mask.shape[1], 5):
-                for y in range(0, self.mask.shape[0], 5):
-                    if np.array_equal(self.mask[y, x], colormap[i]):
-                        p = pixel_to_3d(x, y)
-                        if p is not None:
-                            pointcloud.append(p)
-                        # depth = self.depth_img[y, x]
-                        # if depth > 0:
-                        #     pointcloud.append(pixel_to_3d(x, y))
+            # for x in range(0, self.mask.shape[1], 10):
+            #     for y in range(0, self.mask.shape[0], 10):
+            #        if np.array_equal(self.mask[y, x], colormap[i]):
+            #             p = pixel_to_3d(x, y)
+            #             if p is not None:
+            #                 pointcloud.append(p)
 
-            if len(pointcloud) > 0:
-                center = np.mean(pointcloud, axis=0)
-            else:
+            mask_indices = np.where(np.all(self.mask == colormap[i], axis=-1))
+            if len(mask_indices[0]) == 0:
+                return
+            # mean_x = np.mean(mask_indices[1])
+            # mean_y = np.mean(mask_indices[0])
+            # center = pixel_to_3d(int(mean_x), int(mean_y))
+            for y, x in zip(mask_indices[0], mask_indices[1]):
+                p = pixel_to_3d(x, y)
+                if p is not None:
+                    pointcloud.append(p)
+
+            # # if len(pointcloud) > 0:
+            # #     center = np.mean(pointcloud, axis=0)
+            # # else:
+            # #     return
+            if len(pointcloud) == 0:
                 return
 
 
@@ -226,6 +239,8 @@ class SegmentationNode(Node):
 
         for i in range(1, 5):
             publish_object_tf(i)
+        # print('published tf')
+        # publish_object_tf(1)
 
 
 
