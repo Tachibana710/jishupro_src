@@ -4,13 +4,16 @@ from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge
 import numpy as np
 import open3d as o3d
-from tf2_ros import TransformBroadcaster
+from tf2_ros import TransformBroadcaster, Buffer, TransformListener
 from geometry_msgs.msg import TransformStamped
 from geometry_msgs.msg import Point
 from scipy.spatial.transform import Rotation as R
 from visualization_msgs.msg import Marker, MarkerArray
 from sensor_msgs_py import point_cloud2
+from sensor_msgs.msg import PointField
 import pyrealsense2 as rs
+import struct
+
 
 
 class PlaneDetectionNode(Node):
@@ -46,11 +49,43 @@ class PlaneDetectionNode(Node):
         )
 
         self.last_update_time = self.get_clock().now()
-        # # カメラの内部パラメータ (仮に設定。CameraInfoトピックを購読して取得してもよい)
-        # self.fx = 525.0  # 焦点距離 x
-        # self.fy = 525.0  # 焦点距離 y
-        # self.cx = 319.5  # 画像中心 x
-        # self.cy = 239.5  # 画像中心 y
+
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
+
+        self.tf_timer = self.create_timer(0.1, self.tf_callback)
+
+        self.camera_to_bluemarker = TransformStamped()
+        self.camera_to_greenmarker = TransformStamped()
+
+    def tf_callback(self):
+        try:
+            # "target_frame" と "source_frame" 間の最新の変換を取得
+            target_frame = 'object2' # blue marker
+            source_frame = 'camera_depth_optical_frame'
+
+            self.camera_to_bluemarker = TransformStamped()
+            
+            self.camera_to_bluemarker = self.tf_buffer.lookup_transform(
+                target_frame,
+                source_frame,
+                rclpy.time.Time())
+
+            target_frame = 'object3' #green marker
+            source_frame = 'camera_depth_optical_frame'
+
+            self.camera_to_greenmarker = TransformStamped()
+            
+            self.camera_to_greenmarker = self.tf_buffer.lookup_transform(
+                target_frame,
+                source_frame,
+                rclpy.time.Time())
+            
+            # self.get_logger().info(f'Got transform: {transform}')
+        
+        except Exception as e:
+            self.get_logger().warn(f'Could not get transform: {e}')
+
 
     def publish_plane_marker(self, plane_model, inliers, point_cloud):
         # 平面のパラメータを取得 (ax + by + cz + d = 0)
@@ -121,10 +156,18 @@ class PlaneDetectionNode(Node):
 
         # PointCloudメッセージを作成
         print(msg.header.frame_id)
-        point_cloud_msg = point_cloud2.create_cloud_xyz32(msg.header, point_cloud)
+        fields = [
+            PointField(name='x', offset=0, datatype=PointField.FLOAT32, count=1),
+            PointField(name='y', offset=4, datatype=PointField.FLOAT32, count=1),
+            PointField(name='z', offset=8, datatype=PointField.FLOAT32, count=1),
+            PointField(name='rgb', offset=12, datatype=PointField.FLOAT32, count=1)
+        ]
+        point_cloud_msg = point_cloud2.create_cloud(msg.header, fields ,point_cloud)
+        # point_cloud_msg = point_cloud2.create_cloud_xyz32(msg.header, point_cloud[:, :3])
         self.point_cloud_pub.publish(point_cloud_msg)
 
         # 平面検出 (RANSAC)
+        point_cloud = point_cloud[:, :3]
         plane_model, inliers = self.detect_plane(point_cloud)
 
         if plane_model is not None:
@@ -139,7 +182,7 @@ class PlaneDetectionNode(Node):
             # # 平面モデルと原点の距離を計算
             # distance_to_origin = abs(plane_model[3]) / np.linalg.norm(plane_model[:3])
 
-            rot, trans = self.calculate_camera_transform(plane_model, point_cloud[inliers])
+            rot, trans = self.calculate_camera_transform(plane_model, [self.camera_to_bluemarker.transform.translation, self.camera_to_greenmarker.transform.translation])
 
             # TFをブロードキャスト
             self.broadcast_tf(rot,trans)
@@ -169,8 +212,17 @@ class PlaneDetectionNode(Node):
         z = abs(plane_model[3]) / np.linalg.norm(normal)
 
         # offset_pointsを合致させる
-
-        yaw = 1.57
+        if len(offset_points) != 2 or offset_points[0] is None or offset_points[1] is None:
+            return rotation, [0, 0, z]
+        
+        
+        blue_marker_from_map = rotation @ np.array([offset_points[0].x, offset_points[0].y, offset_points[0].z])
+        green_marker_from_map = rotation @ np.array([offset_points[1].x, offset_points[1].y, offset_points[1].z])
+        # print("blue:",blue_marker_from_map)
+        # print("green:",green_marker_from_map)
+        yaw = np.arctan2(green_marker_from_map[1] - blue_marker_from_map[1], green_marker_from_map[0] - blue_marker_from_map[0])
+        # print(yaw * 180 / np.pi)
+        yaw = -yaw + np.pi
         rotation_aroud_z = np.array([
             [np.cos(yaw), -np.sin(yaw), 0],
             [np.sin(yaw), np.cos(yaw), 0],
@@ -178,7 +230,10 @@ class PlaneDetectionNode(Node):
         ])
         rotation = rotation_aroud_z @ rotation
 
-        translation = [0, 0, z]
+        blue_marker_from_map = rotation @ np.array([offset_points[0].x, offset_points[0].y, offset_points[0].z])
+        x = blue_marker_from_map[0]
+        y = blue_marker_from_map[1]
+        translation = [x, y, z]
 
         return rotation, translation
         
@@ -188,11 +243,16 @@ class PlaneDetectionNode(Node):
         points = []
         for v in range(h):
             for u in range(w):
-                z = depth_image[v, u]
-                if z == 0:
+                depth = depth_image[v, u]
+                if depth == 0:
                     continue
-                x, y, z = rs.rs2_deproject_pixel_to_point(self.depth_intrin, [u, v], z)
-                points.append([x, y, z])
+                x, y, z = rs.rs2_deproject_pixel_to_point(self.depth_intrin, [u, v], depth)
+                gray = int(np.clip((1.0 - depth / 1.0) * 255, 0, 255))
+                # print(gray)
+                rgb = (gray << 16) | (gray << 8) | gray
+                rgb_f = struct.unpack('f', struct.pack('I', rgb))[0]
+                # print(rgb)
+                points.append([x, y, z, rgb_f])
         points = np.array(points)
         return points
 
