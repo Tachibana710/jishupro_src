@@ -9,6 +9,8 @@
 #include <geometry_msgs/msg/transform_stamped.hpp>
 #include <geometry_msgs/msg/point_stamped.hpp>
 
+#include "std_srvs/srv/empty.hpp"
+
 struct joint_angle
 {
     double shoulder_angle;
@@ -74,6 +76,27 @@ class ControlNode : public rclcpp::Node
             pub_ = this->create_publisher<my_msgs::msg::TargetCurrent>("/target_current", 10);
 
             timer_ = this->create_wall_timer(std::chrono::milliseconds(2), std::bind(&ControlNode::cycle_callback, this));
+
+            start_control_srv_ = this->create_service<std_srvs::srv::Empty>(
+                "/start_control", 
+                [this](const std_srvs::srv::Empty::Request::SharedPtr request,
+                       std_srvs::srv::Empty::Response::SharedPtr response)
+                {
+                    (void)request;
+                    (void)response;
+                    emergency_stop_ = false;
+                    return;
+                });
+            emergency_stop_srv_ = this->create_service<std_srvs::srv::Empty>(
+                "/emergency_stop", 
+                [this](const std_srvs::srv::Empty::Request::SharedPtr request,
+                       std_srvs::srv::Empty::Response::SharedPtr response)
+                {
+                    (void)request;
+                    (void)response;
+                    emergency_stop_ = true;
+                    return;
+                });
 
             state_ = my_msgs::msg::RobotState();
 
@@ -182,6 +205,9 @@ class ControlNode : public rclcpp::Node
         // rclcpp::Subscription<my_msgs::msg::RobotState>::SharedPtr target_sub_;
         rclcpp::Publisher<my_msgs::msg::RobotState>::SharedPtr target_pub_;
         rclcpp::Publisher<my_msgs::msg::TargetCurrent>::SharedPtr pub_;
+
+        rclcpp::Service<std_srvs::srv::Empty>::SharedPtr start_control_srv_;
+        rclcpp::Service<std_srvs::srv::Empty>::SharedPtr emergency_stop_srv_;
 
         std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
         std::shared_ptr<tf2_ros::TransformListener> tf_listener_;

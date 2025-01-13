@@ -23,8 +23,9 @@ find_package(my_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
 
-ament_target_dependencies(control_node rclcpp my_msgs tf2 tf2_ros geometry_msgs)
+ament_target_dependencies(control_node rclcpp my_msgs tf2 tf2_ros geometry_msgs std_srvs)
 
 install(TARGETS
   control_node
