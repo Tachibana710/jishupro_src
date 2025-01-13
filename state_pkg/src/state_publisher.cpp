@@ -60,13 +60,13 @@ class StatePublisher : public rclcpp::Node
 
             constexpr double pi = 3.14159265358979323846;
             constexpr double factor = 2 * pi / 8192 / 36;
-            state.elbow_angle = msg->angle_integ[elbow_idx] * factor;
+            state.elbow_angle = (msg->angle_integ[elbow_idx] - offset_.elbow_offset_raw) * factor + offset_.elbow_offset;
             state.elbow_omega = msg->rpm_raw[elbow_idx] * 2 * pi / 60.0 / 36;
-            constexpr double shoulder_gear_ratio = 44.0 / 20.0;
-            state.shoulder_angle = msg->angle_integ[shoulder_idx] * factor / shoulder_gear_ratio;
+            constexpr double shoulder_gear_ratio = 52.0 / 20.0;
+            state.shoulder_angle = (msg->angle_integ[shoulder_idx] - offset_.shoulder_offset_raw) * factor / shoulder_gear_ratio + offset_.shoulder_offset;
             state.shoulder_omega = msg->rpm_raw[shoulder_idx] * 2 * pi / 60.0 / 36 / shoulder_gear_ratio;
             constexpr double wheel_radius = 0.05 / 2;
-            state.y = msg->angle_integ[wheel_idx] * factor * wheel_radius;
+            state.y = (msg->angle_integ[wheel_idx] - offset_.wheel_offset_raw) * factor * wheel_radius + offset_.wheel_offset;
             state.y_dot = msg->rpm_raw[wheel_idx] * 2 * pi / 60.0 / 36 * wheel_radius;
 
             auto header = std_msgs::msg::Header();
@@ -129,7 +129,7 @@ class StatePublisher : public rclcpp::Node
             offset_.shoulder_offset_raw = sensor_data_.angle_integ[shoulder_idx];
             offset_.wheel_offset_raw = sensor_data_.angle_integ[wheel_idx];
 
-            offset_.elbow_offset = -M_PI / 2;
+            offset_.elbow_offset = 0;
             offset_.shoulder_offset = M_PI / 2;
             offset_.wheel_offset = 0;
             RCLCPP_INFO(this->get_logger(), "init_pose service has been called.");
