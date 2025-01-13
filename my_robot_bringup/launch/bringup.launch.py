@@ -89,5 +89,5 @@ def generate_launch_description():
         control_node,
         recognition_node,
         camera_calib_node,
-        rosbag_process
+        # rosbag_process
     ])
