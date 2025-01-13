@@ -15,7 +15,7 @@ struct offset_data{
     int32_t wheel_offset_raw = 0;
 
     double elbow_offset = 0;
-    double shoulder_offset = 1.5708;
+    double shoulder_offset = M_PI / 2;
     double wheel_offset = 0;
 };
 
@@ -23,6 +23,14 @@ struct offset_data{
 constexpr int shoulder_idx = 1;
 constexpr int elbow_idx = 0;
 constexpr int wheel_idx = 2;
+
+constexpr double mm = 0.001;
+constexpr double pi = 3.14159265358979323846;
+constexpr double l1 = 260.719 * mm;
+constexpr double l2 = 290.097 * mm;
+constexpr double hand_y = 45 * mm;
+constexpr double shoulder_z = 65.5 * mm;
+constexpr double shoulder_x = 100.3 * mm;
 
 
 class StatePublisher : public rclcpp::Node
@@ -67,7 +75,7 @@ class StatePublisher : public rclcpp::Node
             robot_origin.point.z = 0;
             state.robot_origin = robot_origin;
 
-            std::array<double, 3> robot_to_shoulder = {0.0, 0.0, 0.0};
+            std::array<double, 3> robot_to_shoulder = {shoulder_x, hand_y, shoulder_z};
             geometry_msgs::msg::PointStamped shoulder_origin;
             shoulder_origin.header = header;
             shoulder_origin.point.x = robot_origin.point.x + robot_to_shoulder[0];
@@ -75,7 +83,6 @@ class StatePublisher : public rclcpp::Node
             shoulder_origin.point.z = robot_origin.point.z + robot_to_shoulder[2];
             state.shoulder_origin = shoulder_origin;
 
-            double l1 = 0.2;
             std::array<double, 3> shoulder_to_elbow = {
                 l1 * std::cos(state.shoulder_angle),
                 0.0,
@@ -88,7 +95,6 @@ class StatePublisher : public rclcpp::Node
             elbow_origin.point.z = shoulder_origin.point.z + shoulder_to_elbow[2];
             state.elbow_origin = elbow_origin;
 
-            double l2 = 0.2;
             std::array<double, 3> elbow_to_end_effector = {
                 l2 * std::cos(state.shoulder_angle + state.elbow_angle),
                 0.0,
