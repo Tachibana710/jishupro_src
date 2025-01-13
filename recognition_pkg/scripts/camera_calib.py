@@ -17,7 +17,7 @@ import pyrealsense2 as rs
 import struct
 import threading
 
-
+camera_calibrated = False
 
 class PlaneDetectionNode(Node):
     def __init__(self):
@@ -52,12 +52,12 @@ class PlaneDetectionNode(Node):
             10
         )
 
-        self.last_update_time = self.get_clock().now()
+        self.last_update_time = None
 
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
 
-        self.tf_timer = self.create_timer(0.1, self.tf_callback)
+        self.tf_timer = self.create_timer(0.01, self.tf_callback)
 
         self.camera_to_bluemarker = TransformStamped()
         self.camera_to_greenmarker = TransformStamped()
@@ -197,11 +197,14 @@ class PlaneDetectionNode(Node):
     def depth_callback(self, msg):
         # 1秒に1回のみ処理
         self.depth_msg = msg
-        if self.get_clock().now() - self.last_update_time > rclpy.time.Duration(seconds=1):
-            self.last_update_time = self.get_clock().now()
+        # if camera_calibrated == False:
+            # if self.get_clock().now() - self.last_update_time > rclpy.time.Duration(seconds=5):
+        if self.last_update_time is None or self.get_clock().now() - self.last_update_time > rclpy.time.Duration(seconds=10):
+            camera_calibrated = True
             if not self.thread.is_alive():
                 self.thread = threading.Thread(target=self.estimate_camera_pose)
                 self.thread.start()
+                self.last_update_time = self.get_clock().now()
 
 
        
