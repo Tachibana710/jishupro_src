@@ -4,6 +4,23 @@
 #include "my_msgs/msg/robot_state.hpp"
 #include "my_msgs/msg/target_current.hpp"
 
+
+struct joint_angle
+{
+    double shoulder_angle;
+    double elbow_angle;
+    double y;
+};
+
+constexpr double mm = 0.001;
+constexpr double pi = 3.14159265358979323846;
+constexpr double l1 = 260.719 * mm;
+constexpr double l2 = 290.097 * mm;
+constexpr double hand_y = 45 * mm;
+constexpr double shoulder_z = 65.5 * mm;
+constexpr double shoulder_x = 100.3 * mm;
+
+
 class PIDRegulator
 {
     public:
@@ -105,6 +122,25 @@ class ControlNode : public rclcpp::Node
             // target_current.target_current[wheel_idx] = wheel_regulator_(target_.y, target_.y_dot) * 1000;
 
             // pub_->publish(target_current);
+        }
+
+        joint_angle handpos_to_jointangle(std::array<double,3> handpos, int sign = -1)
+        {
+            double x = handpos[0];
+            double y = handpos[1];
+            double z = handpos[2];
+
+            x -= shoulder_x;
+            z -= shoulder_z;
+            y -= hand_y;
+            double r = std::sqrt(x * x + z * z);
+            double shoulder_angle = std::atan2(z, r) + sign * std::acos((l1 * l1 + r * r - l2 * l2) / (2 * l1 * r));
+            // double elbow_angle = M_PI - std::acos((l1 * l1 + l2 * l2 - r * r) / (2 * l1 * l2));
+            double elbow_angle = std::atan2(z - l1 * std::sin(shoulder_angle), x - l1 * std::cos(shoulder_angle)) - shoulder_angle;
+            // double theta1 = std::atan2(z, x);
+            // double theta3 = std::acos((l1 * l1 + l2 * l2 - r * r - y * y) / (2 * l1 * l2));
+            // double theta2 = std::atan2(y, r) - std::atan2(l2 * std::sin(theta3), l1 + l2 * std::cos(theta3));
+            return joint_angle{shoulder_angle, elbow_angle, y};
         }
 
     private:
