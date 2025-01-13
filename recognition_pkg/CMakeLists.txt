@@ -38,6 +38,7 @@ ament_export_dependencies(rosidl_default_runtime)
 install(
   PROGRAMS
   scripts/recognition_node.py  # インストールするPythonスクリプト
+  scripts/camera_calib.py
 DESTINATION lib/${PROJECT_NAME}  # インストール先ディレクトリ
 )
 

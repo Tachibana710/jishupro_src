@@ -66,11 +66,19 @@ def generate_launch_description():
         output='screen'
     )
 
+    camera_calib_node = Node(
+        package='recognition_pkg',
+        executable='camera_calib.py',
+        name='camera_calib_node',
+        output='screen'
+    )
+
     return LaunchDescription([
         serial_node,
         foxglove_bridge_launch,
         realsence_launch,
         state_publisher_node,
         control_node,
-        recognition_node
+        recognition_node,
+        camera_calib_node
     ])
