@@ -9,21 +9,6 @@
 
 #define M_PI 3.14159265358979323846
 
-struct offset_data{
-    int32_t elbow_offset_raw = 0;
-    int32_t shoulder_offset_raw = 0;
-    int32_t wheel_offset_raw = 0;
-
-    double elbow_offset = 0;
-    double shoulder_offset = M_PI / 2;
-    double wheel_offset = 0;
-};
-
-
-constexpr int shoulder_idx = 1;
-constexpr int elbow_idx = 0;
-constexpr int wheel_idx = 2;
-
 constexpr double mm = 0.001;
 constexpr double pi = 3.14159265358979323846;
 constexpr double l1 = 260.719 * mm;
@@ -31,6 +16,22 @@ constexpr double l2 = 290.097 * mm;
 constexpr double hand_y = 45 * mm;
 constexpr double shoulder_z = 65.5 * mm;
 constexpr double shoulder_x = 100.3 * mm;
+
+struct offset_data{
+    int32_t elbow_offset_raw = 0;
+    int32_t shoulder_offset_raw = 0;
+    int32_t wheel_offset_raw = 0;
+
+    double elbow_offset = 0;
+    double shoulder_offset = M_PI / 2;
+    double wheel_offset = 150 * mm;
+};
+
+
+constexpr int shoulder_idx = 1;
+constexpr int elbow_idx = 0;
+constexpr int wheel_idx = 2;
+
 
 
 class StatePublisher : public rclcpp::Node
@@ -131,7 +132,7 @@ class StatePublisher : public rclcpp::Node
 
             offset_.elbow_offset = 0;
             offset_.shoulder_offset = M_PI / 2;
-            offset_.wheel_offset = 0;
+            offset_.wheel_offset = 150 * mm;
             RCLCPP_INFO(this->get_logger(), "init_pose service has been called.");
         }
 

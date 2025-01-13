@@ -4,6 +4,10 @@
 #include "my_msgs/msg/robot_state.hpp"
 #include "my_msgs/msg/target_current.hpp"
 
+#include <tf2_ros/transform_listener.h>
+#include <tf2_ros/buffer.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+#include <geometry_msgs/msg/point_stamped.hpp>
 
 struct joint_angle
 {
@@ -64,13 +68,17 @@ class ControlNode : public rclcpp::Node
         {
             state_sub_ = this->create_subscription<my_msgs::msg::RobotState>(
                 "/robot_state", 10, std::bind(&ControlNode::state_callback, this, std::placeholders::_1));
-            target_sub_ = this->create_subscription<my_msgs::msg::RobotState>(
-                "/target_state", 10, std::bind(&ControlNode::target_callback, this, std::placeholders::_1));
+            // target_sub_ = this->create_subscription<my_msgs::msg::RobotState>(
+            //     "/target_state", 10, std::bind(&ControlNode::target_callback, this, std::placeholders::_1));
+            target_pub_ = this->create_publisher<my_msgs::msg::RobotState>("/target_state", 10);
             pub_ = this->create_publisher<my_msgs::msg::TargetCurrent>("/target_current", 10);
 
-            timer_ = this->create_wall_timer(std::chrono::milliseconds(1), std::bind(&ControlNode::cycle_callback, this));
+            timer_ = this->create_wall_timer(std::chrono::milliseconds(2), std::bind(&ControlNode::cycle_callback, this));
 
             state_ = my_msgs::msg::RobotState();
+
+            tf_buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+            tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
 
             shoulder_regulator_ = PIDRegulator(
                 [this](){return state_.shoulder_angle;},
@@ -113,13 +121,27 @@ class ControlNode : public rclcpp::Node
             pub_->publish(target_current);
         }
 
-        void target_callback(const my_msgs::msg::RobotState::SharedPtr msg)
-        {
-            target_ = *msg;
-        }
+        // void target_callback(const my_msgs::msg::RobotState::SharedPtr msg)
+        // {
+        //     target_ = *msg;
+        // }
 
         void cycle_callback()
         {
+            try {
+                geometry_msgs::msg::TransformStamped transform = tf_buffer_->lookupTransform("map", "object1", tf2::TimePointZero);
+                object1_.point.x = transform.transform.translation.x;
+                object1_.point.y = transform.transform.translation.y;
+                object1_.point.z = transform.transform.translation.z;
+            } catch (tf2::TransformException &ex) {
+                RCLCPP_ERROR(this->get_logger(), "%s", ex.what());
+            }
+
+            auto target_joint_angle = handpos_to_jointangle({object1_.point.x, object1_.point.y, object1_.point.z+20 * mm});
+            target_.shoulder_angle = target_joint_angle.shoulder_angle;
+            target_.elbow_angle = target_joint_angle.elbow_angle;
+            target_.y = target_joint_angle.y;
+            target_pub_->publish(target_);
             return;
             // constexpr int shoulder_idx = 1;
             // constexpr int elbow_idx = 0;
@@ -133,7 +155,7 @@ class ControlNode : public rclcpp::Node
             // pub_->publish(target_current);
         }
 
-        joint_angle handpos_to_jointangle(std::array<double,3> handpos, int sign = -1)
+        joint_angle handpos_to_jointangle(std::array<double,3> handpos, int sign = 1)
         {
             double x = handpos[0];
             double y = handpos[1];
@@ -157,14 +179,20 @@ class ControlNode : public rclcpp::Node
         my_msgs::msg::RobotState target_;
 
         rclcpp::Subscription<my_msgs::msg::RobotState>::SharedPtr state_sub_;
-        rclcpp::Subscription<my_msgs::msg::RobotState>::SharedPtr target_sub_;
+        // rclcpp::Subscription<my_msgs::msg::RobotState>::SharedPtr target_sub_;
+        rclcpp::Publisher<my_msgs::msg::RobotState>::SharedPtr target_pub_;
         rclcpp::Publisher<my_msgs::msg::TargetCurrent>::SharedPtr pub_;
+
+        std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
+        std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
 
         rclcpp::TimerBase::SharedPtr timer_;
 
         PIDRegulator shoulder_regulator_;
         PIDRegulator elbow_regulator_;
         PIDRegulator wheel_regulator_;
+
+        geometry_msgs::msg::PointStamped object1_;
 
         bool emergency_stop_ = true;
 };
