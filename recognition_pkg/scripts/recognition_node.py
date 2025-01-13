@@ -16,6 +16,7 @@ import pyrealsense2 as rs
 from realsense2_camera_msgs.msg import Extrinsics
 from sensor_msgs.msg import CameraInfo
 import cv2
+import std_msgs
 
 class SegmentationNode(Node):
     def __init__(self):
@@ -100,6 +101,12 @@ class SegmentationNode(Node):
             extrin_callback,
             10
         )
+
+        # self.observ_y_pub = self.create_publisher(
+        #     std_msgs.msg.Float32,
+        #     'recognition/observation/y',
+        #     10
+        # )
 
         # self.tf_buffer = tf2_ros.Buffer()
         # self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)

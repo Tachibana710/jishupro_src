@@ -16,6 +16,8 @@
 #include <array>
 #include <optional>
 
+#include <random>
+
 struct joint_angle
 {
     double shoulder_angle;
@@ -370,12 +372,14 @@ class ControlNode : public rclcpp::Node
             static double last_time = rclcpp::Clock().now().seconds();
             double now_time = rclcpp::Clock().now().seconds();
             double dt = now_time - last_time;
+            static double wait_time = 2.0;
             if (traj_)
             {
                 if (traj_->is_finished())
                 {
                     traj_ = std::nullopt;
                     last_time = now_time;
+                    wait_time = static_cast<double>(rand()) / RAND_MAX * 2.0 + 0.5;
                 }else{
                     auto target_joint_angle = (*traj_)();
                     set_target(
@@ -397,11 +401,20 @@ class ControlNode : public rclcpp::Node
 
                 }
             }else{
-                if (dt > 2.0 && !emergency_stop_){
+                if (dt > wait_time && !emergency_stop_){
+                    double distance = std::sqrt(
+                        (object1_.point.x - end_effector_.point.x) * (object1_.point.x - end_effector_.point.x) +
+                        (object1_.point.y - end_effector_.point.y) * (object1_.point.y - end_effector_.point.y) +
+                        (object1_.point.z - end_effector_.point.z) * (object1_.point.z - end_effector_.point.z));
+                    double duration = 0.4;
+                    if (duration < 0.3){
+                        duration = 0.3;
+                    }
+
                     traj_ = TrajectoryPlanner(
                         {end_effector_.point.x, end_effector_.point.y, end_effector_.point.z},
-                        {object1_.point.x, object1_.point.y, object1_.point.z},
-                        0.5);
+                        {object1_.point.x, object1_.point.y, 20 * mm},
+                        0.4);
                 }
             }
 

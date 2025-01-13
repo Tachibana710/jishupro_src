@@ -6,6 +6,7 @@
 #include "std_srvs/srv/empty.hpp"
 
 #include "geometry_msgs/msg/point_stamped.hpp"
+#include "std_msgs/msg/float32.hpp"
 
 #define M_PI 3.14159265358979323846
 
@@ -50,6 +51,8 @@ class StatePublisher : public rclcpp::Node
             shoulder_origin_pub_ = this->create_publisher<geometry_msgs::msg::PointStamped>("/shoulder_origin", 10);
             elbow_origin_pub_ = this->create_publisher<geometry_msgs::msg::PointStamped>("/elbow_origin", 10);
             end_effector_pub_ = this->create_publisher<geometry_msgs::msg::PointStamped>("/end_effector", 10);
+            observ_y_sub_ = this->create_subscription<std_msgs::msg::Float32>(
+                "/recognition/observ_y", 10, std::bind(&StatePublisher::observ_y_callback, this, std::placeholders::_1));
 
             RCLCPP_INFO(this->get_logger(), "state_publisher has started.");
         }
@@ -69,6 +72,8 @@ class StatePublisher : public rclcpp::Node
             constexpr double wheel_radius = 0.05 / 2;
             state.y = (msg->angle_integ[wheel_idx] - offset_.wheel_offset_raw) * factor * wheel_radius + offset_.wheel_offset;
             state.y_dot = msg->rpm_raw[wheel_idx] * 2 * pi / 60.0 / 36 * wheel_radius;
+
+            state_y_ = state.y;
 
             auto header = std_msgs::msg::Header();
             header.stamp = this->now();
@@ -136,6 +141,11 @@ class StatePublisher : public rclcpp::Node
             RCLCPP_INFO(this->get_logger(), "init_pose service has been called.");
         }
 
+        void observ_y_callback(const std_msgs::msg::Float32::SharedPtr msg){
+            // RCLCPP_INFO(this->get_logger(), "y: %f", msg->data);
+            offset_.wheel_offset += 0.1 * (msg->data - state_y_);
+        }
+
     private:
         rclcpp::Subscription<my_msgs::msg::SensorData>::SharedPtr sub_;
         rclcpp::Publisher<my_msgs::msg::RobotState>::SharedPtr pub_;
@@ -146,8 +156,12 @@ class StatePublisher : public rclcpp::Node
         rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr elbow_origin_pub_;
         rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr end_effector_pub_;
 
+        rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr observ_y_sub_;
+
         offset_data offset_;
         my_msgs::msg::SensorData sensor_data_;
+
+        double state_y_ = 0;
 };
 
 int main(int argc, char * argv[])

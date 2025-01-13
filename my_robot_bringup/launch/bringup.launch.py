@@ -53,6 +53,13 @@ def generate_launch_description():
         output='screen'
     )
 
+    observ_y_node = Node(
+        package='recognition_pkg',
+        executable='publish_map2object4.py',
+        name='observ_y_node',
+        output='screen'
+    )
+
     state_publisher_node = Node(
         package='state_pkg',
         executable='state_publisher',
@@ -89,5 +96,6 @@ def generate_launch_description():
         control_node,
         recognition_node,
         camera_calib_node,
+        observ_y_node,
         # rosbag_process
     ])

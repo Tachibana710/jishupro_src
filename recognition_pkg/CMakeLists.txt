@@ -39,6 +39,7 @@ install(
   PROGRAMS
   scripts/recognition_node.py  # インストールするPythonスクリプト
   scripts/camera_calib.py
+  scripts/publish_map2object4.py
 DESTINATION lib/${PROJECT_NAME}  # インストール先ディレクトリ
 )
 

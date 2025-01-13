@@ -27,6 +27,7 @@ ament_target_dependencies(state_publisher rclcpp my_msgs std_srvs)
 
 install(TARGETS
   state_publisher
+  # scripts/publish_map2object4.py 
   DESTINATION lib/${PROJECT_NAME}
 )
 
