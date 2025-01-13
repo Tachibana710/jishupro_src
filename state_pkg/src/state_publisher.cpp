@@ -45,6 +45,11 @@ class StatePublisher : public rclcpp::Node
             init_pose_srv_ = this->create_service<std_srvs::srv::Empty>(
                 "/init_pose", std::bind(&StatePublisher::init_pose_, this, std::placeholders::_1, std::placeholders::_2));
 
+            robot_origin_pub_ = this->create_publisher<geometry_msgs::msg::PointStamped>("/robot_origin", 10);
+            shoulder_origin_pub_ = this->create_publisher<geometry_msgs::msg::PointStamped>("/shoulder_origin", 10);
+            elbow_origin_pub_ = this->create_publisher<geometry_msgs::msg::PointStamped>("/elbow_origin", 10);
+            end_effector_pub_ = this->create_publisher<geometry_msgs::msg::PointStamped>("/end_effector", 10);
+
             RCLCPP_INFO(this->get_logger(), "state_publisher has started.");
         }
 
@@ -73,7 +78,8 @@ class StatePublisher : public rclcpp::Node
             robot_origin.point.x = 0;
             robot_origin.point.y = state.y;
             robot_origin.point.z = 0;
-            state.robot_origin = robot_origin;
+            // state.robot_origin = robot_origin;
+            robot_origin_pub_->publish(robot_origin);
 
             std::array<double, 3> robot_to_shoulder = {shoulder_x, hand_y, shoulder_z};
             geometry_msgs::msg::PointStamped shoulder_origin;
@@ -81,7 +87,8 @@ class StatePublisher : public rclcpp::Node
             shoulder_origin.point.x = robot_origin.point.x + robot_to_shoulder[0];
             shoulder_origin.point.y = robot_origin.point.y + robot_to_shoulder[1];
             shoulder_origin.point.z = robot_origin.point.z + robot_to_shoulder[2];
-            state.shoulder_origin = shoulder_origin;
+            shoulder_origin_pub_->publish(shoulder_origin);
+            // state.shoulder_origin = shoulder_origin;
 
             std::array<double, 3> shoulder_to_elbow = {
                 l1 * std::cos(state.shoulder_angle),
@@ -93,7 +100,8 @@ class StatePublisher : public rclcpp::Node
             elbow_origin.point.x = shoulder_origin.point.x + shoulder_to_elbow[0];
             elbow_origin.point.y = shoulder_origin.point.y + shoulder_to_elbow[1];
             elbow_origin.point.z = shoulder_origin.point.z + shoulder_to_elbow[2];
-            state.elbow_origin = elbow_origin;
+            elbow_origin_pub_->publish(elbow_origin);
+            // state.elbow_origin = elbow_origin;
 
             std::array<double, 3> elbow_to_end_effector = {
                 l2 * std::cos(state.shoulder_angle + state.elbow_angle),
@@ -105,7 +113,7 @@ class StatePublisher : public rclcpp::Node
             end_effector.point.x = elbow_origin.point.x + elbow_to_end_effector[0];
             end_effector.point.y = elbow_origin.point.y + elbow_to_end_effector[1];
             end_effector.point.z = elbow_origin.point.z + elbow_to_end_effector[2];
-            state.end_effector = end_effector;
+            end_effector_pub_->publish(end_effector);
 
             pub_->publish(state);
             // RCLCPP_INFO(this->get_logger(), "I heard: [%s]", msg->data.c_str());
@@ -131,6 +139,12 @@ class StatePublisher : public rclcpp::Node
         rclcpp::Subscription<my_msgs::msg::SensorData>::SharedPtr sub_;
         rclcpp::Publisher<my_msgs::msg::RobotState>::SharedPtr pub_;
         rclcpp::Service<std_srvs::srv::Empty>::SharedPtr init_pose_srv_;
+
+        rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr robot_origin_pub_;
+        rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr shoulder_origin_pub_;
+        rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr elbow_origin_pub_;
+        rclcpp::Publisher<geometry_msgs::msg::PointStamped>::SharedPtr end_effector_pub_;
+
         offset_data offset_;
         my_msgs::msg::SensorData sensor_data_;
 };

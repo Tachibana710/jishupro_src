@@ -96,6 +96,15 @@ class ControlNode : public rclcpp::Node
             constexpr int wheel_idx = 2;
             my_msgs::msg::TargetCurrent target_current;
 
+            if (emergency_stop_)
+            {
+                target_current.target_current[shoulder_idx] = 0;
+                target_current.target_current[elbow_idx] = 0;
+                target_current.target_current[wheel_idx] = 0;
+                pub_->publish(target_current);
+                return;
+            }
+
             target_current.target_current[shoulder_idx] = shoulder_regulator_(target_.shoulder_angle, target_.shoulder_omega) * 1000;
             target_current.target_current[elbow_idx] = elbow_regulator_(target_.elbow_angle, target_.elbow_omega) * 1000;
             // target_current.target_current[elbow_idx] = std::sin(rclcpp::Clock().now().seconds()) * 500;
@@ -156,6 +165,8 @@ class ControlNode : public rclcpp::Node
         PIDRegulator shoulder_regulator_;
         PIDRegulator elbow_regulator_;
         PIDRegulator wheel_regulator_;
+
+        bool emergency_stop_ = true;
 };
 
 int main(int argc, char * argv[])
